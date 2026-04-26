@@ -1,0 +1,73 @@
+﻿# ============================================================
+# Multimodal RAG Project - Master Requirements
+#
+# Covers all three sub-pipelines:
+#   1. PDF RAG        (Document Multimodal Summrizer/PDF RAG)
+#   2. Video RAG      (Document Multimodal Summrizer/Video RAG)
+#   3. Image-Text RAG (Document Multimodal Summrizer/Multimodal Image-Text RAG)
+#
+# Install:
+#   pip install -r requirements.txt
+#
+# System dependencies (install separately on Windows):
+#   Tesseract OCR -> https://github.com/UB-Mannheim/tesseract/wiki
+#   Poppler       -> https://github.com/oschwartz10612/poppler-windows/releases
+#   FFmpeg        -> https://ffmpeg.org/download.html  (for Video RAG)
+# ============================================================
+
+# --- Environment / secrets ---
+python-dotenv
+
+# --- Google Gemini ---
+google-generativeai
+langchain-google-genai
+
+# --- Core LangChain ---
+langchain
+langchain-core
+langchain-community
+langchain-classic
+langchain-text-splitters
+langchain-chroma
+
+# --- Vector Stores ---
+chromadb
+faiss-cpu
+langchain[docarray]
+
+# --- PDF processing ---
+unstructured[all-docs]
+unstructured-pytesseract
+pytesseract
+pdf2image
+pypdf
+
+# --- Image handling ---
+Pillow
+matplotlib
+requests
+
+# --- Video RAG ---
+yt-dlp
+moviepy
+SpeechRecognition
+openai-whisper
+soundfile
+pydub
+
+# --- LlamaIndex (Video RAG) ---
+llama-index-core
+llama-index-vector-stores-lancedb
+lancedb
+llama-index-embeddings-huggingface
+llama-index-llms-google-genai
+llama-index-multi-modal-llms-gemini
+nest_asyncio
+
+# --- Web App (FastAPI backend) ---
+fastapi
+uvicorn[standard]
+python-multipart
+
+# --- Utilities ---
+IPython

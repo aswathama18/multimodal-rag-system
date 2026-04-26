@@ -1,0 +1,16 @@
+yt-dlp
+moviepy
+SpeechRecognition
+openai-whisper
+soundfile
+pydub
+llama-index-core
+llama-index-vector-stores-lancedb
+lancedb
+llama-index-embeddings-huggingface
+matplotlib
+Pillow
+llama-index-llms-google-genai
+llama-index-multi-modal-llms-gemini
+nest_asyncio
+google-generativeai

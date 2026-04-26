@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Multimodal RAG Dashboard</title>
+  <meta name="description" content="Local AI dashboard for document, image, and video multimodal RAG using Gemini."/>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⬡</div>
+      <h1>Multimodal <span>RAG</span></h1>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div> Server Online
+    </div>
+  </header>
+
+  <!-- ── Tab bar ─────────────────────────────────────────── -->
+  <nav class="tab-bar" role="tablist">
+    <button class="tab-btn active" data-tab="doc"   role="tab" id="tab-doc">
+      <span class="tab-icon">📄</span> Document RAG
+    </button>
+    <button class="tab-btn" data-tab="image" role="tab" id="tab-image">
+      <span class="tab-icon">🖼️</span> Image Analyzer
+    </button>
+    <button class="tab-btn" data-tab="video" role="tab" id="tab-video">
+      <span class="tab-icon">🎬</span> Video RAG
+    </button>
+    <button class="tab-btn" data-tab="text" role="tab" id="tab-text">
+      <span class="tab-icon">📝</span> Text RAG
+    </button>
+    <button class="tab-btn" data-tab="imagetext" role="tab" id="tab-imagetext">
+      <span class="tab-icon">🖼️📝</span> Image-Text RAG
+    </button>
+    <button class="tab-btn" data-tab="status" role="tab" id="tab-status">
+      <span class="tab-icon">📊</span> Status
+    </button>
+  </nav>
+
+  <!-- ── Main ────────────────────────────────────────────── -->
+  <main>
+
+    <!-- ════════════ DOCUMENT RAG ════════════ -->
+    <section class="tab-panel active" id="panel-doc" role="tabpanel">
+
+      <div class="card">
+        <div class="card-title">Upload PDF Document</div>
+        <div class="drop-zone" id="doc-drop">
+          <input type="file" id="doc-file" accept=".pdf"/>
+          <div class="drop-icon">📑</div>
+          <div class="drop-label">
+            <strong>Drop your PDF here</strong> or click to browse
+          </div>
+          <div class="file-selected" id="doc-file-name"></div>
+        </div>
+        <div class="options-row">
+          <label class="toggle-wrap" for="doc-force">
+            <input type="checkbox" id="doc-force"/>
+            <div class="toggle-slider"></div>
+            <span class="toggle-label">
+              <strong>Force Reset</strong> — wipes extracted images &amp; Chroma DB
+            </span>
+          </label>
+          <button class="btn btn-primary" id="doc-process-btn" disabled>
+            ▶ Process Document
+          </button>
+        </div>
+      </div>
+
+      <!-- Log Console -->
+      <div class="card" id="doc-log-card" style="display:none">
+        <div class="card-title">⚡ Pipeline Log</div>
+        <div class="log-console visible" id="doc-log"></div>
+      </div>
+
+      <!-- Query -->
+      <div class="card">
+        <div class="card-title">Ask a Question</div>
+        <div class="query-row">
+          <input type="text" class="url-input" id="doc-query-input"
+                 placeholder="e.g. Summarize the key findings in this document…"/>
+          <button class="btn btn-cyan" id="doc-ask-btn">Ask ▶</button>
+        </div>
+        <div id="doc-answer" class="answer-box" style="margin-top:14px">
+          <div class="answer-label">Answer</div>
+          <div id="doc-answer-text"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════ IMAGE ANALYZER ════════════ -->
+    <section class="tab-panel" id="panel-image" role="tabpanel">
+
+      <div class="card">
+        <div class="card-title">Upload Image(s)</div>
+        <div class="drop-zone" id="img-drop">
+          <input type="file" id="img-file" accept="image/*" multiple/>
+          <div class="drop-icon">🖼️</div>
+          <div class="drop-label">
+            <strong>Drop images here</strong> or click to browse (max 3)
+          </div>
+          <div class="file-selected" id="img-file-names"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Custom Prompt (optional)</div>
+        <textarea class="url-input" id="img-prompt" rows="3"
+                  placeholder="Describe this image in detail. What do you see?"></textarea>
+        <div class="options-row" style="margin-top:12px">
+          <span></span>
+          <button class="btn btn-cyan" id="img-analyze-btn" disabled>
+            🔍 Analyze with Gemini
+          </button>
+        </div>
+      </div>
+
+      <div class="card" id="img-result-card" style="display:none">
+        <div class="card-title">Gemini Vision Analysis</div>
+        <div class="analysis-box visible" id="img-result"></div>
+      </div>
+
+    </section>
+
+    <!-- ════════════ VIDEO RAG ════════════ -->
+    <section class="tab-panel" id="panel-video" role="tabpanel">
+
+      <div class="card">
+        <div class="card-title">YouTube Video URL</div>
+        <div class="url-input-wrap">
+          <input type="url" class="url-input" id="video-url-input"
+                 placeholder="https://www.youtube.com/watch?v=…"/>
+        </div>
+        <div class="options-row">
+          <label class="toggle-wrap" for="video-force">
+            <input type="checkbox" id="video-force"/>
+            <div class="toggle-slider"></div>
+            <span class="toggle-label">
+              <strong>Force Reset</strong> — wipes frames, video file &amp; LanceDB
+            </span>
+          </label>
+          <button class="btn btn-primary" id="video-process-btn">
+            ▶ Process Video
+          </button>
+        </div>
+      </div>
+
+      <!-- Log Console -->
+      <div class="card" id="video-log-card" style="display:none">
+        <div class="card-title">⚡ Pipeline Log</div>
+        <div class="log-console visible" id="video-log"></div>
+      </div>
+
+      <!-- Query -->
+      <div class="card">
+        <div class="card-title">Ask About the Video</div>
+        <div class="query-row">
+          <input type="text" class="url-input" id="video-query-input"
+                 placeholder="e.g. What happens in the first scene?"/>
+          <button class="btn btn-cyan" id="video-ask-btn">Ask ▶</button>
+        </div>
+        <div id="video-answer" class="answer-box" style="margin-top:14px">
+          <div class="answer-label">Answer</div>
+          <div id="video-answer-text"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════ TEXT RAG ════════════ -->
+    <section class="tab-panel" id="panel-text" role="tabpanel">
+
+      <div class="card">
+        <div class="card-title">Upload Text File</div>
+        <div class="drop-zone" id="text-drop">
+          <input type="file" id="text-file" accept=".txt"/>
+          <div class="drop-icon">📝</div>
+          <div class="drop-label">
+            <strong>Drop your .txt here</strong> or click to browse
+          </div>
+          <div class="file-selected" id="text-file-name"></div>
+        </div>
+        <div class="options-row">
+          <span></span>
+          <button class="btn btn-primary" id="text-process-btn" disabled>
+            ▶ Process Text
+          </button>
+        </div>
+      </div>
+
+      <!-- Query -->
+      <div class="card">
+        <div class="card-title">Ask a Question</div>
+        <div class="query-row">
+          <input type="text" class="url-input" id="text-query-input"
+                 placeholder="e.g. What does the text say about..."/>
+          <button class="btn btn-cyan" id="text-ask-btn">Ask ▶</button>
+        </div>
+        <div id="text-answer" class="answer-box" style="margin-top:14px">
+          <div class="answer-label">Answer</div>
+          <div id="text-answer-text" class="markdown-content"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════ IMAGE-TEXT RAG ════════════ -->
+    <section class="tab-panel" id="panel-imagetext" role="tabpanel">
+
+      <div class="card">
+        <div class="card-title">Knowledge Base (Text)</div>
+        <div class="drop-zone" id="imagetext-drop">
+          <input type="file" id="imagetext-file" accept=".txt"/>
+          <div class="drop-icon">📚</div>
+          <div class="drop-label">
+            <strong>Drop your .txt KB here</strong> or click to browse
+          </div>
+          <div class="file-selected" id="imagetext-file-name"></div>
+        </div>
+        <div class="options-row">
+          <span></span>
+          <button class="btn btn-primary" id="imagetext-process-btn" disabled>
+            ▶ Process Knowledge Base
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Multimodal Query</div>
+        <div style="margin-bottom: 10px; font-size: 13px; color: var(--muted)">
+          Upload an image (optional) and ask a question.
+        </div>
+        <div class="drop-zone" id="imagetext-img-drop" style="padding: 16px;">
+          <input type="file" id="imagetext-img-file" accept="image/*"/>
+          <div class="drop-icon" style="font-size: 24px; margin-bottom: 4px;">🖼️</div>
+          <div class="drop-label">
+            <strong>Drop an image here</strong> or browse
+          </div>
+          <div class="file-selected" id="imagetext-img-name"></div>
+        </div>
+        
+        <div class="query-row" style="margin-top: 14px;">
+          <input type="text" class="url-input" id="imagetext-query-input"
+                 placeholder="e.g. Provide information on given image..."/>
+          <button class="btn btn-cyan" id="imagetext-ask-btn">Ask ▶</button>
+        </div>
+        <div id="imagetext-answer" class="answer-box" style="margin-top:14px">
+          <div class="answer-label">Answer</div>
+          <div id="imagetext-answer-text" class="markdown-content"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ════════════ STATUS ════════════ -->
+    <section class="tab-panel" id="panel-status" role="tabpanel">
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          System Status
+          <button class="btn btn-secondary" id="status-refresh-btn" style="margin:0">
+            ↻ Refresh
+          </button>
+        </div>
+        <div class="status-grid" id="status-grid">
+          <div class="stat-card">
+            <div class="stat-title">Doc RAG Chain</div>
+            <div class="stat-value muted" id="s-chain">—</div>
+            <div class="stat-sub">Pipeline must be run to activate</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Chroma Vectors</div>
+            <div class="stat-value purple" id="s-chroma">—</div>
+            <div class="stat-sub">Stored embeddings in ChromaDB</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Extracted Images</div>
+            <div class="stat-value cyan" id="s-imgs">—</div>
+            <div class="stat-sub">JPGs from PDF partitioning</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Video Index</div>
+            <div class="stat-value muted" id="s-vindex">—</div>
+            <div class="stat-sub">LanceDB rows in text_collection</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Video Frames</div>
+            <div class="stat-value cyan" id="s-frames">—</div>
+            <div class="stat-sub">PNG frames in mixed_data/</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Last Video</div>
+            <div class="stat-value muted" id="s-vtitle" style="font-size:14px;word-break:break-word">—</div>
+            <div class="stat-sub" id="s-vauthor"></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Text/ImgText Index</div>
+            <div class="stat-value purple" id="s-txtindex">—</div>
+            <div class="stat-sub">FAISS chunks indexed</div>
+          </div>
+        </div>
+
+        <div class="divider" style="margin-top:20px"></div>
+        <div style="display:flex;gap:10px;margin-top:4px;flex-wrap:wrap">
+          <button class="btn btn-danger" id="reset-doc-btn">🗑 Reset Document RAG</button>
+          <button class="btn btn-danger" id="reset-video-btn">🗑 Reset Video RAG</button>
+          <button class="btn btn-danger" id="reset-text-btn">🗑 Reset Text RAG</button>
+          <button class="btn btn-danger" id="reset-imagetext-btn">🗑 Reset Image-Text RAG</button>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

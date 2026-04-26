@@ -1,0 +1,14 @@
+### System Packages (apt-get)
+sudo apt-get update
+sudo apt-get install poppler-utils
+sudo apt-get install libleptonica-dev tesseract-ocr libtesseract-dev python3-pil tesseract-ocr-eng tesseract-ocr-script-latn
+
+### Python Libraries (pip)
+pip install "unstructured[all-docs]" pillow pydantic lxml matplotlib
+pip install unstructured-pytesseract
+# Removed tesseract-ocr (not needed on Windows)
+pip install langchain_core
+pip install langchain
+pip install langchain_community
+pip install langchain-google-genai
+pip install chromadb

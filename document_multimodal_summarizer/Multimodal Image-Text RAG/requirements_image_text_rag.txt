@@ -1,0 +1,34 @@
+# ============================================================
+#  Multimodal Image-Text RAG — Requirements
+#  Source: Multimodal_RAG_with_Gemini_Langchain_and_Google_AI_Studio_Yt (1).ipynb
+# ============================================================
+#
+#  Install with:
+#      pip install -r requirements_image_text_rag.txt
+#
+# ============================================================
+
+# --- Core LangChain framework ---
+langchain
+langchain-core
+langchain-community
+langchain-text-splitters
+
+# --- Google Gemini + LangChain integration ---
+langchain-google-genai
+google-generativeai
+
+# --- Vector Store (in-memory & FAISS) ---
+faiss-cpu
+langchain[docarray]          # DocArrayInMemorySearch support
+
+# --- PDF loading ---
+pypdf
+
+# --- Image handling ---
+Pillow                        # PIL.Image — open/display images
+matplotlib                    # plt.imshow / plt.show for image preview
+requests                      # Fetch images from URLs
+
+# --- Environment / secrets ---
+python-dotenv

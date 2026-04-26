@@ -1,0 +1,46 @@
+# ============================================================
+#  PDF Multimodal RAG — Requirements
+#  (Analyse, Extract & Retrieve data from PDF documents)
+#
+#  Install with:
+#      pip install -r requirements_pdf_rag.txt
+#
+#  System dependencies (install separately):
+#      - Tesseract OCR  →  https://github.com/UB-Mannheim/tesseract/wiki
+#      - Poppler        →  https://github.com/oschwartz10612/poppler-windows/releases
+# ============================================================
+
+# --- Unstructured PDF partitioning (extract text, images, tables) ---
+unstructured[all-docs]         # core unstructured library + all document extras
+unstructured-pytesseract        # Tesseract integration for unstructured
+pytesseract                     # Python wrapper for Tesseract OCR
+
+# --- PDF image rendering (requires Poppler binaries on PATH) ---
+pdf2image                       # converts PDF pages to PIL images (used by unstructured hi_res)
+Pillow                          # PIL Image manipulation
+
+# --- Core LangChain framework ---
+langchain
+langchain-core
+langchain-community
+
+# --- Google Gemini + LangChain integration ---
+langchain-google-genai
+google-generativeai
+
+# --- Vector Store (disk-persistent Chroma) ---
+chromadb                        # Chroma vectorstore
+langchain-chroma                # LangChain ↔ Chroma bridge
+
+# --- Multi-vector retriever storage ---
+# (InMemoryByteStore is built into langchain-core; no extra install needed)
+
+# --- Data serialisation ---
+# base64 is part of Python stdlib — no extra install
+
+# --- Environment / secrets ---
+python-dotenv
+
+# --- Output / display ---
+matplotlib                      # image preview in terminal / Jupyter
+IPython                         # display(Markdown(...)) helper (optional)

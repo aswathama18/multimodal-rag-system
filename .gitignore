@@ -1,0 +1,64 @@
+# ============================================================
+#  Multi_modal_RAG — .gitignore
+# ============================================================
+
+# ── CRITICAL: Never commit secrets ───────────────────────
+.env
+
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Python tooling ───────────────────────────────────────
+pip-wheel-metadata/
+*.sqlite3
+
+
+
+# ── Virtual environment ───────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Vector stores / databases (auto-generated, large) ────
+chroma_db/
+lancedb/
+
+# ── Auto-generated pipeline output directories ───────────
+extracted_data/
+extracted_data2/
+debug_images/
+mixed_data/
+video_data/
+
+# ── Uploaded files (managed by webapp at runtime) ────────
+webapp/uploads/
+
+# ── OS / editor artifacts ─────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+logs/
+*.log
+
+# ── ML model caches ──────────────────────────────────────
+.cache/
+.huggingface/
+transformers_cache/
+
+# ── Temp media files ─────────────────────────────────────
+*.mp4
+*.wav
+*.mp3
+*.avi
+

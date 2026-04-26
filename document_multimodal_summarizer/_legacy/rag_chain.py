@@ -1,0 +1,194 @@
+# -*- coding: utf-8 -*-
+"""
+rag_chain.py
+------------
+Multimodal RAG chain for the Multimodal RAG pipeline.
+
+Uses Gemini 2.5 Pro (via ChatGoogleGenerativeAI) to answer questions
+grounded in retrieved text, table, and image content.
+No OpenAI dependency.
+
+Public API:
+    img_prompt_func(data_dict)              -> list[HumanMessage]
+    build_rag_chain(retriever)              -> Runnable
+    query(chain, question)                  -> str
+    batch_query(chain, questions)           -> list[str]
+"""
+
+# ------------------------------------------------------------------
+# LangChain
+# ------------------------------------------------------------------
+from langchain_core.messages import HumanMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+
+# ------------------------------------------------------------------
+# Google Generative AI — chat model (replaces ChatOpenAI entirely)
+# ------------------------------------------------------------------
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+# ------------------------------------------------------------------
+# Project modules
+# ------------------------------------------------------------------
+import config                             # model names, API key
+from display import split_image_text_types  # image/text splitter
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Multimodal prompt builder
+# ══════════════════════════════════════════════════════════════════
+
+def img_prompt_func(data_dict: dict) -> list:
+    """
+    Build a multimodal ``HumanMessage`` from retrieved context and the question.
+
+    The message may contain:
+    - Zero or more image payloads (base64 JPEG, from retrieved images).
+    - A single text block with the question + any retrieved text/table chunks.
+
+    Args:
+        data_dict : Dict with keys:
+                      ``"context"``  – output of ``split_image_text_types()``
+                                       (i.e. ``{"images": [...], "texts": [...]}``)
+                      ``"question"`` – the user's question string.
+
+    Returns:
+        list[HumanMessage]: Single-element list ready for a Gemini chat model.
+    """
+    formatted_texts = "\n".join(data_dict["context"]["texts"])
+    messages: list = []
+
+    # Add retrieved image(s) to the prompt
+    for image_b64 in data_dict["context"]["images"]:
+        messages.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+        })
+
+    # Add the text / question block
+    messages.append({
+        "type": "text",
+        "text": (
+            "You are a helpful research assistant.\n"
+            "You will be given mixed information (text, tables, and/or images) "
+            "retrieved from academic or technical documents.\n"
+            "Use only this retrieved information to answer the user's question "
+            "accurately and concisely. If the information is insufficient, say so.\n\n"
+            f"User question: {data_dict['question']}\n\n"
+            "Retrieved text / tables:\n"
+            f"{formatted_texts}"
+        ),
+    })
+
+    return [HumanMessage(content=messages)]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  RAG chain builder
+# ══════════════════════════════════════════════════════════════════
+
+def build_rag_chain(retriever):
+    """
+    Assemble the full multimodal RAG chain.
+
+    Pipeline::
+
+        question
+          → retriever              (fetch relevant docs)
+          → split_image_text_types (separate images from text)
+          → img_prompt_func        (build multimodal prompt)
+          → Gemini 2.5 Pro         (generate grounded answer)
+          → StrOutputParser        (return plain string)
+
+    Args:
+        retriever : Any LangChain retriever — typically the
+                    ``MultiVectorRetriever`` from ``retriever.py``.
+
+    Returns:
+        Runnable: Invokable chain.  Call ``chain.invoke("your question")``
+                  or use the ``query()`` helper below.
+    """
+    model = ChatGoogleGenerativeAI(
+        model=config.GEMINI_PRO_MODEL,   # "gemini-2.5-pro-preview-05-06"
+        temperature=0,
+        max_tokens=2048,
+    )
+
+    chain = (
+        {
+            "context":  retriever | RunnableLambda(split_image_text_types),
+            "question": RunnablePassthrough(),
+        }
+        | RunnableLambda(img_prompt_func)
+        | model
+        | StrOutputParser()
+    )
+
+    return chain
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Structured query functions
+# ══════════════════════════════════════════════════════════════════
+
+def query(chain, question: str) -> str:
+    """
+    Run a single question through the multimodal RAG chain.
+
+    Args:
+        chain    : Runnable assembled by ``build_rag_chain()``.
+        question : Natural-language question string (non-empty).
+
+    Returns:
+        str: The model's answer grounded in retrieved context.
+
+    Raises:
+        ValueError: If *question* is empty or not a string.
+    """
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be a non-empty string.")
+
+    print(f"\n[query] ❓ {question}")
+    answer = chain.invoke(question.strip())
+    print(f"[query] 💬 {answer}")
+    return answer
+
+
+def batch_query(chain, questions: list) -> list:
+    """
+    Run multiple questions through the chain sequentially.
+
+    Prints a progress header before each question so you can track
+    which query is being processed.
+
+    Args:
+        chain     : Runnable assembled by ``build_rag_chain()``.
+        questions : List of question strings.
+
+    Returns:
+        list[str]: Answers in the same order as the input questions.
+    """
+    if not questions:
+        return []
+
+    answers = []
+    total   = len(questions)
+
+    for i, q in enumerate(questions, start=1):
+        print(f"\n{'═'*60}")
+        print(f"  Q {i}/{total}: {q}")
+        print(f"{'═'*60}")
+        answers.append(query(chain, q))
+
+    return answers
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Standalone import check   (python rag_chain.py)
+# ══════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    print("rag_chain.py loaded successfully.")
+    print(f"  RAG model  : {config.GEMINI_PRO_MODEL}")
+    print("  To build the chain: chain = build_rag_chain(retriever)")
+    print("  To query         : answer = query(chain, 'your question')")
