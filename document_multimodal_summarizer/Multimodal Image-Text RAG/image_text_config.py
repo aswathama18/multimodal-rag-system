@@ -45,13 +45,13 @@ os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 # Gemini Model Names
 # ------------------------------------------------------------------
 # Text-only RAG model (answers from retrieved text context)
-GEMINI_TEXT_MODEL   = "gemini-2.0-flash"
+GEMINI_TEXT_MODEL   = "gemini-2.5-flash"
 
 # Vision model (analyses images and generates descriptions)
-GEMINI_VISION_MODEL = "gemini-2.0-flash"
+GEMINI_VISION_MODEL = "gemini-2.5-flash"
 
 # Embedding model used by FAISS for semantic search
-EMBED_MODEL         = "models/embedding-001"
+EMBED_MODEL         = "gemini-embedding-001"
 
 # ------------------------------------------------------------------
 # Text Splitter defaults

@@ -28,10 +28,11 @@ Source: Multimodal_RAG_with_Gemini_Langchain_and_Google_AI_Studio_Yt (1).ipynb
   - retriever.invoke() (cell: fEW4gvOlsJAQ)
 """
 
-from langchain.schema.document import Document
+from langchain_core.documents import Document
 from langchain_community.document_loaders import TextLoader
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+# from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_text_splitters import CharacterTextSplitter
 
 from image_text_config import (

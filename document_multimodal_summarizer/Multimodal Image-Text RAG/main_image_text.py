@@ -43,9 +43,11 @@ print("\n[1/7] Loading Gemini models...")
 llm_text   = load_text_model()
 llm_vision = load_vision_model()
 
+print(" Gemini text model loaded successfully .")
+
 # Quick sanity-check on text model
-reply = llm_text.invoke("please come up with the best funny line.").content
-print(f"  Text model test: {reply}")
+# reply = llm_text.invoke("please come up with the best funny line.").content
+# print(f"  Text model test: {reply}")
 
 # ------------------------------------------------------------------
 # 2. Load and chunk the knowledge-base text

@@ -62,3 +62,7 @@ transformers_cache/
 *.mp3
 *.avi
 
+# ── Data files ───────────────────────────────────────────
+data/
+data2/
+*.pdf

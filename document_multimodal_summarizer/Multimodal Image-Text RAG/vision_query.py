@@ -41,6 +41,16 @@ def build_image_message(prompt: str, image: Image.Image) -> HumanMessage:
     -------
     HumanMessage  — ready to pass to vision_model.invoke([message]).
     """
+    import base64
+    from io import BytesIO
+    def pil_to_base64(image):
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG")
+        return base64.b64encode(buffered.getvalue()).decode()
+    
+    img_base64 = pil_to_base64(image)
+    image_data = f"data:image/jpeg;base64,{img_base64}"
+    
     message = HumanMessage(
         content=[
             {
@@ -49,7 +59,7 @@ def build_image_message(prompt: str, image: Image.Image) -> HumanMessage:
             },
             {
                 "type": "image_url",
-                "image_url": image,       # PIL Image accepted by LangChain Gemini adapter
+                "image_url": image_data,  # Base64-encoded image data
             },
         ]
     )
