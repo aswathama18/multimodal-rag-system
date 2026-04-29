@@ -89,8 +89,7 @@ def build_full_multimodal_chain(rag_chain, retriever, llm_vision):
     # ----------------------------
     def build_prompt(x):
         return {
-            "query": f"{x['text_query']}\n\nImage context: {x['image_info']}",
-            "context": x["context"],
+            "query": f"{x['text_query']}\n\nImage context: {x['image_info']}"
         }
 
 
