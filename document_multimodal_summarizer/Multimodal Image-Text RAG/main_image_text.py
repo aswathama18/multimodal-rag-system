@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     print("\n[4/7] Building RAG chains...")
     rag_chain  = build_text_rag_chain(retriever, llm_text)
-    full_chain = build_full_multimodal_chain(rag_chain, llm_vision)
+    full_chain = build_full_multimodal_chain(rag_chain, retriever, llm_vision)
 
     # ------------------------------------------------------------------
     # 5. Download a product image for the multimodal demo
@@ -132,7 +132,13 @@ if __name__ == "__main__":
         print("\n[7/7] Full multimodal query (image + text → vision → RAG)...")
         mm_prompt = args.mm_query
         message   = build_image_message(mm_prompt, product_image)
-        mm_answer = full_chain.invoke([message])
+        inputs = {
+            "text_query": args.mm_query or args.text_query,
+            "image": product_image 
+        }
+
+        mm_answer = full_chain.invoke(inputs)
+        print("  Multimodal Query : ", mm_prompt)
         print(f"  Answer: {mm_answer}")
     else:
         print("\n[7/7] Skipped multimodal query (no image or mm_query provided).")

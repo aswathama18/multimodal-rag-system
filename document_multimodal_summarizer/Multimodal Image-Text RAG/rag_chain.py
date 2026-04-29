@@ -3,20 +3,6 @@
 rag_chain.py
 ------------
 RAG chain builders for the Multimodal Image-Text RAG pipeline.
-
-Functions
----------
-build_text_rag_chain(retriever, llm_text) -> Runnable
-    Build a text-context RAG chain: retriever → prompt → LLM → string output.
-
-build_full_multimodal_chain(rag_chain, llm_vision) -> Runnable
-    Build a vision-first full chain: vision model describes an image,
-    then that description is passed through the text RAG chain.
-
-Source: Multimodal_RAG_with_Gemini_Langchain_and_Google_AI_Studio_Yt (1).ipynb
-  - rag_chain definition (cell: LummLlRtsf3p)
-  - full_chain definition (cell: US0kn6zFs63Z)
-  - prompt template      (cell: FovmYztwsVPh)
 """
 
 from langchain_core.output_parsers import StrOutputParser
@@ -25,15 +11,16 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 
 
 # ------------------------------------------------------------------
-# Prompt template  (matches the notebook)
+# Prompt template
 # ------------------------------------------------------------------
 _RAG_TEMPLATE = """
 ```
+
 {context}
+
 ```
 
 {query}
-
 
 Provide brief information and store location.
 """
@@ -44,25 +31,6 @@ Provide brief information and store location.
 # ------------------------------------------------------------------
 
 def build_text_rag_chain(retriever, llm_text):
-    """
-    Build a standard text RAG chain.
-
-    Pipeline
-    --------
-    1. ``retriever``     — fetches relevant Document chunks for the user query.
-    2. ``ChatPromptTemplate`` — injects retrieved context + query into the prompt.
-    3. ``llm_text``      — Gemini text model generates the answer.
-    4. ``StrOutputParser`` — strips the AIMessage wrapper, returning a plain string.
-
-    Parameters
-    ----------
-    retriever : LangChain retriever (from text_processor.build_retriever).
-    llm_text  : ChatGoogleGenerativeAI text model (from model_loader.load_text_model).
-
-    Returns
-    -------
-    Runnable  — invoke with a query string, returns an answer string.
-    """
     prompt = ChatPromptTemplate.from_template(_RAG_TEMPLATE)
 
     rag_chain = (
@@ -71,49 +39,73 @@ def build_text_rag_chain(retriever, llm_text):
         | llm_text
         | StrOutputParser()
     )
+
     print("[rag_chain] Text RAG chain built.")
     return rag_chain
 
 
 # ------------------------------------------------------------------
-# Full multimodal chain (vision → text RAG)
+# Helper: Extract text query
 # ------------------------------------------------------------------
 
-def build_full_multimodal_chain(rag_chain, llm_vision):
-    """
-    Build the end-to-end multimodal chain.
+def get_text_query(x):
+    return x["text_query"]
 
-    Pipeline
-    --------
-    1. ``llm_vision``    — Gemini vision model processes an image+text HumanMessage
-                           and returns a textual description.
-    2. ``StrOutputParser`` — converts AIMessage to plain text.
-    3. ``rag_chain``     — text RAG chain retrieves product info and generates final answer.
 
-    Parameters
-    ----------
-    rag_chain   : Runnable from build_text_rag_chain().
-    llm_vision  : ChatGoogleGenerativeAI vision model (from model_loader.load_vision_model).
+# ------------------------------------------------------------------
+# Full multimodal chain
+# ------------------------------------------------------------------
 
-    Returns
-    -------
-    Runnable  — invoke with a list containing a HumanMessage (image + prompt),
-                returns a final answer string.
+def build_full_multimodal_chain(rag_chain, retriever, llm_vision):
 
-    Example
-    -------
-    >>> from langchain_core.messages import HumanMessage
-    >>> message = HumanMessage(content=[
-    ...     {"type": "text", "text": "Describe this product."},
-    ...     {"type": "image_url", "image_url": pil_image},
-    ... ])
-    >>> answer = full_chain.invoke([message])
-    """
+    # ----------------------------
+    # Vision processing (image → text)
+    # ----------------------------
+    def run_vision(x):
+        from langchain_core.messages import HumanMessage
+        import base64
+        from io import BytesIO
+
+        # Convert PIL → base64
+        buf = BytesIO()
+        x["image"].save(buf, format="JPEG")
+        img_b64 = base64.b64encode(buf.getvalue()).decode()
+
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": x["text_query"]},
+                {
+                    "type": "image_url",
+                    "image_url": f"data:image/jpeg;base64,{img_b64}",
+                },
+            ]
+        )
+
+        return llm_vision.invoke([message]).content
+
+
+    # ----------------------------
+    # Combine query + image context
+    # ----------------------------
+    def build_prompt(x):
+        return {
+            "query": f"{x['text_query']}\n\nImage context: {x['image_info']}",
+            "context": x["context"],
+        }
+
+
+    # ----------------------------
+    # Full chain
+    # ----------------------------
     full_chain = (
-        RunnablePassthrough()
-        | llm_vision
-        | StrOutputParser()
+        {
+            "context": RunnableLambda(get_text_query) | retriever,
+            "image_info": RunnableLambda(run_vision),
+            "text_query": RunnablePassthrough(),
+        }
+        | RunnableLambda(build_prompt)
         | rag_chain
     )
+
     print("[rag_chain] Full multimodal chain built.")
     return full_chain
