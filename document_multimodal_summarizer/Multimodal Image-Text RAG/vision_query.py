@@ -23,6 +23,24 @@ from langchain_core.messages import HumanMessage
 
 
 # ------------------------------------------------------------------
+# Base64 conversion
+# ------------------------------------------------------------------
+
+def image_to_base64(image: Image.Image, image_format: str = "JPEG") -> str:
+    """
+    Convert a PIL image into a Base64 string for Gemini vision messages.
+
+    RGB conversion keeps PNG/RGBA inputs compatible with JPEG encoding.
+    """
+    import base64
+    from io import BytesIO
+
+    buffered = BytesIO()
+    image.convert("RGB").save(buffered, format=image_format)
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
+# ------------------------------------------------------------------
 # Message builder
 # ------------------------------------------------------------------
 
@@ -41,14 +59,7 @@ def build_image_message(prompt: str, image: Image.Image) -> HumanMessage:
     -------
     HumanMessage  — ready to pass to vision_model.invoke([message]).
     """
-    import base64
-    from io import BytesIO
-    def pil_to_base64(image):
-        buffered = BytesIO()
-        image.save(buffered, format="JPEG")
-        return base64.b64encode(buffered.getvalue()).decode()
-    
-    img_base64 = pil_to_base64(image)
+    img_base64 = image_to_base64(image)
     image_data = f"data:image/jpeg;base64,{img_base64}"
     
     message = HumanMessage(

@@ -2,145 +2,156 @@
 """
 main_image_text.py
 ------------------
-Entry point for the Multimodal Image-Text RAG pipeline.
+Entry point for the adaptive Multimodal Image-Text RAG pipeline.
 
-This script reproduces the full notebook workflow:
-  1. Load a text knowledge base (e.g. nike_shoes.txt).
-  2. Build a FAISS vectorstore + retriever from the text.
-  3. Compose a text-only RAG chain.
-  4. Compose the full multimodal chain (vision → RAG).
-  5. Download a product image.
-  6. Run a pure-text RAG query (no image needed).
-  7. Run the full multimodal query (image → vision → RAG → final answer).
-
-Usage
------
-    python main_image_text.py
-
-Source: Multimodal_RAG_with_Gemini_Langchain_and_Google_AI_Studio_Yt (1).ipynb
-  (All cells combined into a single runnable script)
+Routes:
+  1. text_query only             -> FAISS retriever -> Text RAG -> LLM
+  2. image + mm_query only       -> Gemini vision -> Final LLM
+  3. text_query + image + query  -> FAISS + vision -> merged context -> Final LLM
 """
 
 import os
 import sys
 
-# Make sure the package directory is on sys.path when running directly
+from PIL import Image
+
+# Make sure the package directory is on sys.path when running directly.
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
-# ------------------------------------------------------------------
-# 0. Config  (must be first — sets GOOGLE_API_KEY env var)
-# ------------------------------------------------------------------
+# Config must be imported before model/embedding construction.
 import image_text_config  # noqa: F401
 
-# ------------------------------------------------------------------
-# 1. Load Gemini Models
-# ------------------------------------------------------------------
+from image_handler import get_image
 from model_loader import load_text_model, load_vision_model
-
-print("\n[1/7] Loading Gemini models...")
-llm_text   = load_text_model()
-llm_vision = load_vision_model()
-
-print(" Gemini text model loaded successfully .")
-
-# Quick sanity-check on text model
-# reply = llm_text.invoke("please come up with the best funny line.").content
-# print(f"  Text model test: {reply}")
-
-# ------------------------------------------------------------------
-# 2. Load and chunk the knowledge-base text
-# ------------------------------------------------------------------
-from text_processor import (
-    load_text_file,
-    get_text_chunks,
-    build_embeddings,
-    build_vectorstore,
-    build_retriever,
+from rag_chain import (
+    build_full_multimodal_chain,
+    build_image_only_chain,
+    build_text_rag_chain,
 )
+from text_processor import (
+    build_embeddings,
+    build_retriever,
+    build_vectorstore,
+    get_text_chunks,
+    load_text_file,
+)
+
+
+def _clean(value):
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _load_image(image_url=None, image_path=None):
+    if image_path:
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Image file not found: {image_path}")
+        image = Image.open(image_path)
+        image.load()
+        return image
+
+    if image_url:
+        return get_image(image_url, "product-image", "png")
+
+    return None
+
+
+def _build_text_components(text_file, llm_text):
+    """
+    Build FAISS/retriever/text-RAG only for routes that use text retrieval.
+    Image-only routing must not call this function.
+    """
+    if not text_file:
+        raise ValueError("--text_file is required for text RAG and hybrid RAG routes.")
+    if not os.path.exists(text_file):
+        raise FileNotFoundError(f"Text knowledge base not found: {text_file}")
+
+    print(f"\n[2/5] Loading text from: {text_file}")
+    raw_text = load_text_file(text_file)
+    docs = get_text_chunks(raw_text)
+
+    print("\n[3/5] Building FAISS vectorstore...")
+    embeddings = build_embeddings()
+    vectorstore = build_vectorstore(docs, embeddings)
+    retriever = build_retriever(vectorstore)
+    rag_chain = build_text_rag_chain(retriever, llm_text)
+    return retriever, rag_chain
+
+
+def _detect_route(text_query, image):
+    """
+    Route by available modalities.
+
+    mm_query is intentionally excluded from text routing. It describes what
+    the vision model should reason about and is never sent to the retriever.
+    """
+    has_text = bool(text_query)
+    has_image = image is not None
+
+    if has_image and not has_text:
+        return "image_only"
+    if has_text and not has_image:
+        return "text_only"
+    if has_text and has_image:
+        return "hybrid"
+    raise ValueError("Provide --text_query, --image_url/--image_path with --mm_query, or both.")
+
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Multimodal Image-Text RAG")
-    parser.add_argument("--text_file", type=str, required=True, help="Path to text knowledge base file")
+
+    parser = argparse.ArgumentParser(description="Adaptive Multimodal Image-Text RAG")
+    parser.add_argument("--text_file", type=str, help="Path to text knowledge base file")
     parser.add_argument("--image_url", type=str, help="URL of image to analyze")
-    parser.add_argument("--text_query", type=str, required=True, help="Text query to ask")
-    parser.add_argument("--mm_query", type=str, help="Multimodal query to ask (requires image)")
+    parser.add_argument("--image_path", type=str, help="Local image path to analyze")
+    parser.add_argument("--text_query", type=str, help="Text retrieval query")
+    parser.add_argument("--mm_query", type=str, help="Image reasoning query for the vision model")
     args = parser.parse_args()
 
-    TEXT_FILE_PATH = args.text_file
+    text_query = _clean(args.text_query)
+    mm_query = _clean(args.mm_query)
 
-    print(f"\n[2/7] Loading text from: {TEXT_FILE_PATH}")
-    if not os.path.exists(TEXT_FILE_PATH):
-        print(f"  WARNING: {TEXT_FILE_PATH} not found. Exiting.")
-        sys.exit(1)
-    
-    raw_text = load_text_file(TEXT_FILE_PATH)
-    docs = get_text_chunks(raw_text)
+    print("\n[1/5] Loading Gemini models...")
+    llm_text = load_text_model()
+    llm_vision = load_vision_model()
 
-    # ------------------------------------------------------------------
-    # 3. Build FAISS vectorstore & retriever
-    # ------------------------------------------------------------------
-    print("\n[3/7] Building FAISS vectorstore...")
-    embeddings  = build_embeddings()
-    vectorstore = build_vectorstore(docs, embeddings)
-    retriever   = build_retriever(vectorstore)
+    image = _load_image(args.image_url, args.image_path)
+    route = _detect_route(text_query, image)
+    print(f"\n[route] Selected pipeline: {route}")
 
-    # Test retriever
-    test_results = retriever.invoke("Nike slide/sandal.")
-    print(f"  Retriever test results: {[r.page_content for r in test_results]}")
+    if route == "image_only":
+        print("\n[2/5] Running image-only pipeline; skipping FAISS retriever.")
+        image_chain = build_image_only_chain(llm_vision, llm_text)
+        answer = image_chain.invoke(
+            {
+                "image": image,
+                "mm_query": mm_query or "Answer the user's question about this image.",
+            }
+        )
+        print(f"  Image Query: {mm_query or 'Describe the image.'}")
+        print(f"  Answer: {answer}")
 
-    # ------------------------------------------------------------------
-    # 4. Build RAG chains
-    # ------------------------------------------------------------------
-    from rag_chain import build_text_rag_chain, build_full_multimodal_chain
+    elif route == "text_only":
+        retriever, rag_chain = _build_text_components(args.text_file, llm_text)
+        print("\n[4/5] Running text-only RAG query...")
+        answer = rag_chain.invoke(text_query)
+        print(f"  Query : {text_query}")
+        print(f"  Answer: {answer}")
 
-    print("\n[4/7] Building RAG chains...")
-    rag_chain  = build_text_rag_chain(retriever, llm_text)
-    full_chain = build_full_multimodal_chain(rag_chain, retriever, llm_vision)
-
-    # ------------------------------------------------------------------
-    # 5. Download a product image for the multimodal demo
-    # ------------------------------------------------------------------
-    from image_handler import get_image, display_image
-
-    print("\n[5/7] Downloading demo product image...")
-    product_image = None
-    if args.image_url:
-        try:
-            product_image = get_image(args.image_url, "product-image", "png")
-            display_image(product_image, title="Product Image")
-        except Exception as e:
-            print(f"  WARNING: Could not download image — {e}")
-
-    # ------------------------------------------------------------------
-    # 6. Text-only RAG query
-    # ------------------------------------------------------------------
-    print("\n[6/7] Text-only RAG query...")
-    text_query  = args.text_query
-    text_answer = rag_chain.invoke(text_query)
-    print(f"  Query : {text_query}")
-    print(f"  Answer: {text_answer}")
-
-    # ------------------------------------------------------------------
-    # 7. Full multimodal query (image → vision → RAG)
-    # ------------------------------------------------------------------
-    if product_image is not None and args.mm_query:
-        from vision_query import build_image_message
-
-        print("\n[7/7] Full multimodal query (image + text → vision → RAG)...")
-        mm_prompt = args.mm_query
-        message   = build_image_message(mm_prompt, product_image)
-        inputs = {
-            "text_query": args.mm_query or args.text_query,
-            "image": product_image 
-        }
-
-        mm_answer = full_chain.invoke(inputs)
-        print("  Multimodal Query : ", mm_prompt)
-        print(f"  Answer: {mm_answer}")
     else:
-        print("\n[7/7] Skipped multimodal query (no image or mm_query provided).")
+        retriever, _ = _build_text_components(args.text_file, llm_text)
+        print("\n[4/5] Running hybrid RAG query...")
+        full_chain = build_full_multimodal_chain(retriever, llm_vision, llm_text)
+        answer = full_chain.invoke(
+            {
+                "text_query": text_query,
+                "mm_query": mm_query or "Describe the image with details relevant to the text query.",
+                "image": image,
+            }
+        )
+        print(f"  Text Query : {text_query}")
+        print(f"  Image Query: {mm_query or 'Describe the image with details relevant to the text query.'}")
+        print(f"  Answer: {answer}")
 
-    print("\n✅  Multimodal Image-Text RAG pipeline completed successfully.")
+    print("\nMultimodal Image-Text RAG pipeline completed successfully.")
